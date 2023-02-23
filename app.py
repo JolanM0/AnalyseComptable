@@ -93,7 +93,7 @@ def complete_movement_dataframe(df, uploaded_file, format_file, df_plan, TABLE_C
     # on ajoute les datas à la base à compléter
     df = pd.concat([df_uploaded_file, df])
     #Bug loyer dans la compta 2022:
-    df = df.drop(df_mvt.loc[df["Mouvement"]==26965].index)
+    df = df.drop(df.loc[df["Mouvement"]==26965].index)
     # on supprime les doublons selon la clé primaire défini par les colonnes # on garde les dernières valeurs, qui sont surement plus à jour
     df.drop_duplicates(subset=primary_keys_names, inplace=True, keep="first")
     df.sort_values(by=["Date"], inplace=True, ascending=False)
@@ -172,7 +172,7 @@ def create_resume_dataframe(df, classe, display_negative_delta=False, compare_fr
         df_synthese_soustraire = df_groupby_montant.pivot(index="compteFus", columns='annee', values="debitAvecTVA")
     # si la classe est 6=Dépense, les dépenses sont des debits (a sommer), les crédits sont à soustraire
     elif classe ==  6:
-        df_groupby_depense = df.loc[((df_mvt["compteFus"].str.startswith('IMMOBILISATIONS')) | (df["Compte"].str.startswith("6"))) &
+        df_groupby_depense = df.loc[((df["compteFus"].str.startswith('IMMOBILISATIONS')) | (df["Compte"].str.startswith("6"))) &
                                         (df['annee'].isin(year_to_display)),
                        ["compteFus", "debitAvecTVA", "creditAvecTVA", "annee"]].groupby(by=["compteFus", "annee"]).sum().round(0)
         # on permet au année de devenir des valeurs pour le pivot en colonne
@@ -439,7 +439,7 @@ with tab_data:
     st.subheader("Liste du plan comptables")
        
     
-    col_plan1, col_plan2, col_plan3 = st.columns([2,2,1])
+    col_plan1, col_plan2 = st.columns(2)
     with col_plan1:
         plan_classe_filter = st.radio(label="Définir la classe à afficher (defaut Toutes)",
                                options=["1", "2", "3", "4", "5", "6", "7", "Toutes"], 
@@ -449,19 +449,24 @@ with tab_data:
     with col_plan2:
         plan_filter = st.text_input(label='Recherche dans le plan comptable :',
                                     key="f_word_plan")
-    with col_plan3:
+    with col_plan1:
+           
+        df_plan_query = ""
+        if plan_filter:
+            df_plan_query = f"( (Compte.str.contains('{plan_filter.upper()}')) | (Libelle.str.contains('{plan_filter.upper()}')) ) "
+        if plan_classe_filter != "Toutes":
+            df_plan_query += f"& (Compte.str.startswith('{plan_classe_filter}'))"    
+        if df_plan_query:
+            if df_plan_query[0] == "&":
+                df_plan_query = df_plan_query[1:]
+            st.dataframe(df_plan.query(df_plan_query))
+        else:
+            st.dataframe(df_plan)
+        
+    with col_plan2:
         st.button(label="Effacer les filtres", on_click=reset_filter_plan, key="button_filter_plan")
-    df_plan_query = ""
-    if plan_filter:
-        df_plan_query = f"( (Compte.str.contains('{plan_filter.upper()}')) | (Libelle.str.contains('{plan_filter.upper()}')) ) "
-    if plan_classe_filter != "Toutes":
-        df_plan_query += f"& (Compte.str.startswith('{plan_classe_filter}'))"    
-    if df_plan_query:
-        if df_plan_query[0] == "&":
-            df_plan_query = df_plan_query[1:]
-        st.dataframe(df_plan.query(df_plan_query))
-    else:
-        st.dataframe(df_plan)
+            
+    
     
     
 
