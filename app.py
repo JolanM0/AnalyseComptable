@@ -119,52 +119,6 @@ def update_plan_from_file(df, uploaded_file, format_file, file_to_update, primar
     return df
 
 
-# def libelle_recherche(df, libelle):
-#     if libelle !="":
-#         libelle = libelle.upper()
-#         return df.loc[df['Libelle'].str.contains(libelle).fillna(False)]
-#     return df
-
-# def montant_recherche(df, montant):
-#     if montant != "" and montant != 0:
-#         return df.loc[(df["Debit"]==montant) | 
-#                   (df["Credit"]==montant) | 
-#                   (df["debitAvecTVA"]==montant) | 
-#                   (df["creditAvecTVA"]==montant) ] 
-#     return df
-
-
-# def mvt_recherche(df, mvt):
-#     if mvt != 0:
-#         mvt = int(mvt)
-#         return df.loc[df['Mouvement']==int(mvt)]
-#     return df
-
-
-# def comptefus_contient(df, comptefus):
-#     if comptefus != "":
-#         comptefus = comptefus.upper()
-#         return df.loc[df['compteFus'].str.contains(comptefus)]
-#     return df
-
-# def compte_name_contient(df, nom_compte):
-#     if nom_compte != "":
-#         nom_compte = nom_compte.upper()
-#         return df.loc[df['NomCompte'].str.contains(nom_compte)]
-#     return df
-
-# def classe_begin(df, classe):
-#     if classe=="Toutes":
-#         return df
-#     return df.loc[(df['Compte'].str.startswith(classe))]
-
-
-# def date_recherche(df, date):
-#     if date:
-#         return df.loc[df["Date"].dt.date==date]
-#     return df
-
-
 def clear_filter_form(li_years):
     st.session_state["f_libelle"] = ""
     st.session_state["f_compte_name"] = ""
@@ -318,7 +272,7 @@ df_plan.sort_values(by=["Compte"], inplace=True, ascending=True)
 df_table_compte_fus = pd.read_csv(table_compte_fus, sep=";")
 df_table_compte_fus.sort_values(by=["Compte"], inplace=True, ascending=True)
 
-st.write(st.session_state)
+# st.write(st.session_state) #debug help
 if "file_movement_up" in st.session_state:
     if st.session_state.file_movement_up:
         df_mvt = complete_movement_dataframe(df_mvt, st.session_state.file_movement_up, format_movement_csv_file, df_plan, df_table_compte_fus, movement_primary_key)
@@ -354,8 +308,8 @@ with tab_data:
 
 
     
-    with st.expander(label="Filtre des mouvements comptables", expanded=True):
-        st.caption(':grey[FILTRE :]')
+    with st.expander(label="FILTRE des mouvements comptables :", expanded=True):
+
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -510,6 +464,8 @@ with tab_data:
         st.dataframe(df_plan)
     
     
+
+     
     
     uploaded_file_plan = st.file_uploader("Importer des nouvelles donneés issues de la comptabilité (Plan Comptable)", type='txt')
     if uploaded_file_plan is not None:
