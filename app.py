@@ -137,7 +137,7 @@ def reset_filter_plan():
     st.session_state["f_word_plan"] = ""
 
 
-def create_resume_dataframe(df, classe, display_negative_delta=False, compare_from_today=True):
+def create_resume_dataframe(df, classe, year_to_compare ,display_negative_delta=False, compare_from_today=True):
     """
     Parameters
     ----------
@@ -183,7 +183,7 @@ def create_resume_dataframe(df, classe, display_negative_delta=False, compare_fr
         df_synthese_sommer = df_groupby_depense.pivot(index="compteFus", columns='annee', values="debitAvecTVA")
         df_synthese_soustraire = df_groupby_depense.pivot(index="compteFus", columns='annee', values="creditAvecTVA")
     #  on tri avant d'ajouter le total pour avoir le total en dernière ligne
-    df_synthese_sommer.sort_values(by=[current_year], inplace=True, ascending=False)
+    df_synthese_sommer.sort_values(by=[year_to_compare], inplace=True, ascending=False)
     df_synthese_sommer.fillna(0, inplace=True)
     df_synthese_soustraire.fillna(0, inplace=True)
     # équilibrage des dépense avec les remboursement compté dans les crédits
@@ -191,18 +191,18 @@ def create_resume_dataframe(df, classe, display_negative_delta=False, compare_fr
         df_synthese_sommer[col] = df_synthese_sommer[col] - df_synthese_soustraire[col] 
     #Calcul des deltas entre la dernière année et les précédentes
     for y in year_to_display:
-        if y != current_year:
-            df_synthese_sommer[f"{current_year} - {y}"] = df_synthese_sommer[current_year]-df_synthese_sommer[y]
+        if y != year_to_compare:
+            df_synthese_sommer[f"{year_to_compare} - {y}"] = df_synthese_sommer[year_to_compare]-df_synthese_sommer[y]
             if display_negative_delta == False:
-                df_synthese_sommer[f"{current_year} - {y}"] = df_synthese_sommer[f"{current_year} - {y}"].apply(lambda x : x if x>0 else 0)
+                df_synthese_sommer[f"{year_to_compare} - {y}"] = df_synthese_sommer[f"{year_to_compare} - {y}"].apply(lambda x : x if x>0 else 0)
             
     # Calcul des totaux de chaque colonne
     index_total = len(df_synthese_sommer)
     for col in year_to_display:
-        if col != current_year:
-            df_synthese_sommer.loc[index_total, f"{current_year} - {col}"] = df_synthese_sommer[current_year].sum() - df_synthese_sommer[col].sum() 
+        if col != year_to_compare:
+            df_synthese_sommer.loc[index_total, f"{year_to_compare} - {col}"] = df_synthese_sommer[year_to_compare].sum() - df_synthese_sommer[col].sum() 
             df_synthese_sommer.loc[index_total, col] = df_synthese_sommer[col].sum()
-    df_synthese_sommer.loc[index_total, current_year] = df_synthese_sommer[current_year].sum()
+    df_synthese_sommer.loc[index_total, year_to_compare] = df_synthese_sommer[year_to_compare].sum()
     # Mise en forme : float -> int, reset index, et nommage Categorie, ajout de la mention ligne TOTAL
     for col in df_synthese_sommer.columns:
         df_synthese_sommer[col] = df_synthese_sommer[col].astype("int64")
@@ -265,6 +265,14 @@ hide_dataframe_row_index = """
             .blank {display:none}
             </style>
             """
+            
+st.markdown("""
+<style>
+.small-font {
+    font-size: 4px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Inject CSS with Markdown
 st.markdown(hide_dataframe_row_index, unsafe_allow_html=True)
@@ -275,6 +283,7 @@ df_plan = pd.read_csv(plan_csv_file, sep=";")
 df_plan.sort_values(by=["Compte"], inplace=True, ascending=True)
 df_table_compte_fus = pd.read_csv(table_compte_fus, sep=";")
 df_table_compte_fus.sort_values(by=["Compte"], inplace=True, ascending=True)
+
 
 # Ajout de la fonction de mémoire du dernier fichier ajoutés
 updated_file = open("updated_file.txt", "r")
@@ -288,7 +297,7 @@ else:
 
 
 st.title("Synthèse de la comptabilité 	:sunrise:")
-
+st.markdown("---")
 
 
 if "file_movement_up" in st.session_state:
@@ -299,28 +308,39 @@ if "file_plan_up" in st.session_state:
     if st.session_state.file_plan_up:
         df_plan = update_plan_from_file(df_plan, st.session_state.file_plan_up, format_plan_csv_file, plan_csv_file, plan_primary_key)
 
-
+years = np.sort(df_mvt['annee'].unique())
+current_year = max(years)
 
 total_entree = df_mvt.loc[df_mvt["Compte"]=="512115J"].sum()["Debit"]
+total_entree_current_year = df_mvt.loc[(df_mvt["Compte"]=="512115J") & (df_mvt["annee"]==current_year)].sum()["Debit"]
 total_sortie = df_mvt.loc[df_mvt["Compte"]=="512115J"].sum()["Credit"]
+total_sortie_current_year = df_mvt.loc[(df_mvt["Compte"]=="512115J") & (df_mvt["annee"]==current_year)].sum()["Credit"]
 total_epargne_entree = df_mvt.loc[df_mvt["Compte"]=="512116J"].sum()["Debit"]
 total_epargne_sortie = df_mvt.loc[df_mvt["Compte"]=="512116J"].sum()["Credit"]
 
 
+
 entree, sortie, solde, epargne = st.columns(4)
+
+st.markdown(f"Synthèse des états bancaires, **Entrée** (:small_red_triangle:) \
+         et **Sortie** (:small_red_triangle_down:) sur l'année {current_year}, \
+         **Solde réel** sur le compte (:moneybag:), \
+             **Solde réel** sur le compte épargne (:large_orange_diamond:)", unsafe_allow_html=True)
 with entree:
-    st.metric("Entrée :small_red_triangle: :", int(total_entree))
+    st.metric("Entrée :small_red_triangle: :", int(total_entree_current_year))
 with sortie:
-    st.metric("Sortie :small_red_triangle_down: :", int(total_sortie))
+    st.metric("Sortie :small_red_triangle_down: :", int(total_sortie_current_year))
 with solde:
     st.metric("Solde :moneybag: :", int(total_entree - total_sortie))
 with epargne:
     st.metric("Epargne :large_orange_diamond: : ", int(total_epargne_entree - total_epargne_sortie))
 
+st.markdown("---")
+
 tab_data, tab_tableau = st.tabs(["Données", "Tableau"])
 
 
-years = np.sort(df_mvt['annee'].unique())
+
 with tab_data:
     st.subheader("Liste des entrées comptables")
 
@@ -466,7 +486,7 @@ with tab_data:
         file_name=f"Extract Compta {datetime.today().strftime('%d-%m-%Y')}.csv",
         mime='text/csv')   
     
-# précision apportée sur le nom du dernier fichier ayant servi pour MAJ les données
+    # précision apportée sur le nom du dernier fichier ayant servi pour MAJ les données
     if last_updated_file_movement != "0":
         label_uploaded = f"- Le dernier fichier de mise à jour des mouvements est : {last_updated_file_movement}"
     else :
@@ -482,7 +502,7 @@ with tab_data:
             
 
 
-    
+    st.markdown("---")
     st.subheader("Liste du plan comptables")
        
     
@@ -529,6 +549,7 @@ with tab_data:
         if save_plan_file:
             df_plan.to_csv(plan_csv_file, index=False, sep=";")
 
+    st.markdown("---")
     st.subheader("Liste de la synthèse du plan comptable")
     st.write("La colonne compteFus correspond à la colonne de regroupement pour synthétiser les dépenses par poste.")
    
@@ -563,10 +584,9 @@ with tab_data:
 
 with tab_tableau:
  
-    years = np.sort(df_mvt['annee'].unique())
     default_year_option = years[-3:]
     year_to_display = st.multiselect("Choisi les années à inclure :", options=years , default=default_year_option)
-    current_year = max(year_to_display)
+    current_year_to_compare = max(year_to_display)
     
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -580,7 +600,8 @@ with tab_tableau:
             st.subheader(f"Tableau de synthèse des dépenses au {datetime.today().strftime('%d %B %Y')}")   
         else:
             st.subheader(f"Tableau de synthèse des dépenses au 31 décembre {datetime.today().year}") 
-        df_synthese_debit = create_resume_dataframe(df_mvt, 6, 
+        df_synthese_debit = create_resume_dataframe(df_mvt, 6,
+                                                    current_year_to_compare,
                                                     checkbox_display_negative_delta,
                                                     checkbox_compare_from_today)
         st.dataframe(df_synthese_debit.style.format(thousands=" "))
@@ -600,7 +621,8 @@ with tab_tableau:
             st.subheader(f"Tableau de synthèse des recettes au {datetime.today().strftime('%d %B %Y')}")   
         else:
             st.subheader(f"Tableau de synthèse des recettes au 31 décembre {datetime.today().year}")   
-        df_synthese_credit = create_resume_dataframe(df_mvt, 7, 
+        df_synthese_credit = create_resume_dataframe(df_mvt, 7,
+                                    current_year_to_compare,
                                     checkbox_display_negative_delta,
                                     checkbox_compare_from_today)
         st.dataframe(df_synthese_credit.style.format(thousands=" "))
