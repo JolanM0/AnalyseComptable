@@ -10,14 +10,14 @@ This is a temporary script file.
  
 # Librarie
 import streamlit as st
-import plotly.graph_objects as go
+# import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 # import os
 from datetime import datetime
-from time import time as t
-from plotly.subplots import make_subplots
-import plotly.graph_objs as go
+# from time import time as t
+# from plotly.subplots import make_subplots
+# import plotly.graph_objs as go
 
 
 # Module
@@ -82,7 +82,7 @@ def complete_movement_dataframe(df, uploaded_file, format_file, df_plan, TABLE_C
               colAvecTVA="creditAvecTVA", colBase="Credit", debit=False)
     
     df_uploaded_file = df_uploaded_file.reindex(columns=['Mouvement', 'Compte', 'NomCompte', 'compteFus', 'Libelle', 'Date',  'Debit', 'debitAvecTVA',
-                         'Credit', 'creditAvecTVA', 'N° Piece',
+                         'Credit', 'creditAvecTVA', 'N Piece',
                          'Paiement', 'AouK', 'mois', 'annee', 'quartAnnee', 'saison', 'Journal'])
     
     
@@ -130,6 +130,7 @@ def clear_filter_form(li_years):
     st.session_state.f_year = li_years
     st.session_state.f_justif = False
     st.session_state.f_radio_amount = "Egal"
+    st.session_state.f_ag_ou_kol = "Tous"
 
 def reset_filter_plan():
     st.session_state["f_compte_plan"] = "Toutes"
@@ -147,7 +148,7 @@ def create_resume_dataframe(df, classe, display_negative_delta=False, compare_fr
     display_negative_delta : Boolean
         indique si on considère les delta negatif ou non (simplicité de lecture du tableau) default : False
     compare_from_today : Boolean
-        indique si on compare au données des années entières ou jusqu'à la date du jour. defult : True
+        indique si on compare au données des années entières ou jusqu'à la date du jour. default : True
     Returns
     -------
     df_synthese_debit : dataframe
@@ -212,15 +213,23 @@ def create_resume_dataframe(df, classe, display_negative_delta=False, compare_fr
     df_synthese_sommer.replace(0, "", inplace=True)
     return df_synthese_sommer
 
+def save_new_movement(df):
+    df.to_csv(movement_csv_file, index=False, sep=";")
+    updated_file = open("updated_file.txt", "w")
+    updated_file.write(f"{uploaded_file_movement.name} \n")
+    updated_file.close()
+    st.cache_data.clear()
+
+
 
 @st.cache_resource
 def convert_df(df):
     # IMPORTANT: Cache the conversion to prevent computation on every rerun
-    return df.to_csv(sep=";", index=False).encode('utf-8')
+    return df.to_csv(sep=";", index=False).encode('latin1')
 
 @st.cache_data  # 👈 Add the caching decorator
 def load_data(csv):
-    df = pd.read_csv(csv, parse_dates=['Date'], sep=";")
+    df = pd.read_csv(csv, parse_dates=['Date'], sep=";", encoding='latin1')
     df.sort_values(by=['Date'], inplace=True, ascending=False)
     return df
 
@@ -238,7 +247,7 @@ plan_primary_key = ["Compte", "Libelle"]
 
 
 
-# movement_columns = ["Mouvement", "Compte", "Libelle", "Date", "N° Piece", \
+# movement_columns = ["Mouvement", "Compte", "Libelle", "Date", "N Piece", \
 #                     "Debit", "Credit", "Paiement", "Echeance", \
 #                     "Pointage", "Autre1", 'Journal', 'Autre']
 
@@ -249,7 +258,7 @@ plan_primary_key = ["Compte", "Libelle"]
 ########################################################## CORPS DE LA PAGE ###
 st.set_page_config(layout="wide")
 # CSS to inject contained in a string
-
+pd.set_option("styler.render.max_elements", 999_999_999_999)
 hide_dataframe_row_index = """
             <style>
             .row_heading.level0 {display:none}
@@ -260,19 +269,28 @@ hide_dataframe_row_index = """
 # Inject CSS with Markdown
 st.markdown(hide_dataframe_row_index, unsafe_allow_html=True)
 
-st.title('Synthèse de la comptabilité 	:sunrise:')
-
-
-
-
-
 df_mvt = load_data(movement_csv_file)#pd.read_csv(movement_csv_file, parse_dates=['Date'], sep=";")
+# df_mvt.style.format(thousands="")
 df_plan = pd.read_csv(plan_csv_file, sep=";")
 df_plan.sort_values(by=["Compte"], inplace=True, ascending=True)
 df_table_compte_fus = pd.read_csv(table_compte_fus, sep=";")
 df_table_compte_fus.sort_values(by=["Compte"], inplace=True, ascending=True)
 
-# st.write(st.session_state) #debug help
+# Ajout de la fonction de mémoire du dernier fichier ajoutés
+updated_file = open("updated_file.txt", "r")
+file_lines = updated_file.readlines()
+updated_file.close()
+
+if len(file_lines) > 0:
+    last_updated_file_movement = file_lines[-1]
+else:
+    last_updated_file_movement = "0"
+
+
+st.title("Synthèse de la comptabilité 	:sunrise:")
+
+
+
 if "file_movement_up" in st.session_state:
     if st.session_state.file_movement_up:
         df_mvt = complete_movement_dataframe(df_mvt, st.session_state.file_movement_up, format_movement_csv_file, df_plan, df_table_compte_fus, movement_primary_key)
@@ -308,7 +326,7 @@ with tab_data:
 
 
     
-    with st.expander(label="FILTRE des mouvements comptables :", expanded=True):
+    with st.expander(label="Filtre des mouvements comptables :", expanded=True):
 
         
         col1, col2, col3, col4 = st.columns(4)
@@ -317,17 +335,22 @@ with tab_data:
             libelle_filter = st.text_input("Filtrer les libéllés :",
                                            key="f_libelle",
                                            help="Colonne Libelle",) 
-            movement_filter = st.number_input("Filter sur les mouvements :", 
+            movement_filter = st.number_input("Filtrer sur les mouvements :", 
                                               min_value=0,
                                               max_value=max(df_mvt["Mouvement"]),
                                               help="Colonne Mouvement, Mettre 0 pour réinitialiser le filtre",
                                               key="f_movement")
+            radio_agricole_or_kollectif_filter = st.radio(label="Filtrer par mouvement Agricole ou Kollectif :", 
+                                                    options=["Agricole", "Kollectif", "Tous"], 
+                                                    index=2,
+                                                    key= "f_ag_ou_kol",
+                                                    horizontal=True)
             
         with col2:
-            compte_name_filter = st.text_input("Filter sur les noms de compte :",
+            compte_name_filter = st.text_input("Filtrer sur les noms de compte :",
                                                help="Colonne NomCompte ou Compte",
                                                key="f_compte_name")
-            comptefus_filter = st.text_input("Filter sur les noms de compte fusionnés :",
+            comptefus_filter = st.text_input("Filtrer sur les noms de compte fusionnés :",
                                              help="Colonne 'compteFus'",
                                              key="f_comptefus")
             classe_filter = st.radio(label="Définir la classe à afficher (defaut 6) ", 
@@ -355,20 +378,34 @@ with tab_data:
             year_filter = st.multiselect(options=years, label="Année", default=years, key="f_year")
             justif_manquant = st.checkbox("Afficher seulement les justificatifs manquants", 
                                           key="f_justif")
+            # réinitialise les filtres à leur valeur par défaut
             st.button(label="Effacer les filtres", on_click=clear_filter_form, args=(list(years), ))
-
+            
+# Filtre sur l'année et initilialistion de la requete df_filtred_query
     df_filtred_query = f"(annee in {year_filter}) "
+    #Filtre sur le Libelle
     if libelle_filter:
         df_filtred_query += f"& (Libelle.str.contains('{libelle_filter.upper()}')) "
+    #Filtre sur le mouvement
     if movement_filter !=0:
         df_filtred_query += f"& (Mouvement == {movement_filter}) "
+#   Filtre sur la catégorie Agricole ou Kollectif    
+    if radio_agricole_or_kollectif_filter != "Tous":
+        if radio_agricole_or_kollectif_filter == "Agricole":
+            df_filtred_query += "& (AouK == 'A')"
+        else:
+            df_filtred_query += "& (AouK == 'K')"
+# Filter sur le nom des comptes de fusion
     if comptefus_filter:
         df_filtred_query += f"& (compteFus.str.contains('{comptefus_filter.upper()}')) "
+# Filtre sur les Nom de Compte, et Numero de compte (ex : 625100K)
     if compte_name_filter:
         df_filtred_query += f"& ((NomCompte.str.contains('{compte_name_filter.upper()}')) | \
             (Compte.str.contains('{compte_name_filter.upper()}')))"
+# Filtre sur la classe comptable
     if classe_filter != "Toutes":
         df_filtred_query += f"& (Compte.str.startswith('{classe_filter}')) "
+# Filtre sur le montant
     if amount_filter != 0.0:
         if radio_amount_filter == "Supérieur":
             df_filtred_query += f"& ((Credit >= {amount_filter}) | \
@@ -387,14 +424,16 @@ with tab_data:
             (creditAvecTVA == {amount_filter}) | \
             (Debit == {amount_filter}) | \
             (debitAvecTVA == {amount_filter}) ) "
+# Filter sur la date
     if checkbox_date_filter:
         df_filtred_query += f"& (Date == '{date_filter}') "
+# Filtre sur les justificatifs manquants
     if justif_manquant:
-        df_filtred_query += "& (Libelle.str.contains('\*'))"
+        df_filtred_query += "& ( (Libelle.str.contains('\*') & (Compte.str.startswith('6'))))"
         
     
     
-    
+         
 
 
     list_col_sum_value = [ "Debit", "debitAvecTVA", "Credit", "creditAvecTVA"]
@@ -405,11 +444,14 @@ with tab_data:
         df_filtred = df_mvt.query(df_filtred_query)
     else: # n'arrive jamais à priori grâce au  filtre d'année
         df_filtred = df_mvt
-    st.markdown("###### Tableau des mouvements avec les filtres")
+    
+    # ajout de la longueur du tableau filtré
+    st.markdown(f"###### Tableau des mouvements avec les filtres, {df_filtred.shape[0]} lignes sélectionnées.")
+
+    # affichage du tableau filtré
     st.dataframe(df_filtred)
     
-    
-    
+    # création d'un tableau des totaux 
     df_sum_filtred = df_filtred.sum(axis=0)[list_col_sum_value]
     df_total = pd.DataFrame(columns=df_sum_filtred.index)  
     df_total.loc[len(df_total)] = df_sum_filtred
@@ -423,18 +465,23 @@ with tab_data:
         data=csv_mouvement,
         file_name=f"Extract Compta {datetime.today().strftime('%d-%m-%Y')}.csv",
         mime='text/csv')   
-
-    uploaded_file_movement = st.file_uploader("Importer des nouvelles donneés issues de la comptabilité (Mouvement)", type='txt', key="file_movement_up")
+    
+# précision apportée sur le nom du dernier fichier ayant servi pour MAJ les données
+    if last_updated_file_movement != "0":
+        label_uploaded = f"- Le dernier fichier de mise à jour des mouvements est : {last_updated_file_movement}"
+    else :
+        label_uploaded = ""
+    uploaded_file_movement = st.file_uploader(f"Importer des nouvelles donneés issues de la comptabilité (Mouvement) {label_uploaded}" , type='txt', key="file_movement_up")
     if uploaded_file_movement is not None:
-        st.write("df_mvt modifié")
         # Appel de la fonction qui met à jour le csv des mouvements avec les nouveaux mouvements. 
         df_mvt = complete_movement_dataframe(df_mvt, uploaded_file_movement, format_movement_csv_file, df_plan, df_table_compte_fus, movement_primary_key)  
-        save_movement_file = st.button("Enregistrer les données ajoutées au fichiers des mouvements comptables ?")
         # on enregistre le résultat dans notre BDD (ici un csv, ce qui laisse l'usage à l'utilisateur en dehors du logiciel possible)
-        if save_movement_file:
-            df_mvt.to_csv(movement_csv_file, index=False, sep=";")
+        st.button("Enregistrer les données ajoutées au fichier des mouvements comptables ?", on_click=save_new_movement, args=(df_mvt, ))
+        
 
- 
+            
+
+
     
     st.subheader("Liste du plan comptables")
        
@@ -536,7 +583,7 @@ with tab_tableau:
         df_synthese_debit = create_resume_dataframe(df_mvt, 6, 
                                                     checkbox_display_negative_delta,
                                                     checkbox_compare_from_today)
-        st.dataframe(df_synthese_debit)
+        st.dataframe(df_synthese_debit.style.format(thousands=" "))
         csv_depense = convert_df(df_synthese_debit)
         
         st.download_button(
@@ -556,7 +603,7 @@ with tab_tableau:
         df_synthese_credit = create_resume_dataframe(df_mvt, 7, 
                                     checkbox_display_negative_delta,
                                     checkbox_compare_from_today)
-        st.dataframe(df_synthese_credit)
+        st.dataframe(df_synthese_credit.style.format(thousands=" "))
         csv_recette = convert_df(df_synthese_credit)
         
         st.download_button(
